@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# uv
+.python-version
+
+# Node.js
+node_modules/
+.next/
+out/
+.vercel
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+coverage/
+
+# Docker
+docker-compose.override.yml
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Traefik
+traefik/letsencrypt/
+
+# Logs
+*.log
+logs/
+
+# Temporary
+*.tmp
+*.bak
+
+# Database
+*.db
+
+# Claude Code - user specific
+.claude/projects/

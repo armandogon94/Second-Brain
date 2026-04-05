@@ -1,0 +1,114 @@
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: second-brain-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-armando}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-second_brain_db}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-armando}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - second-brain-network
+    restart: unless-stopped
+
+  # FastAPI backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: second-brain-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-armando}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-second_brain_db}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8110:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+    networks:
+      - second-brain-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sb-backend.rule=Host(`api.brain.armandointeligencia.com`)"
+      - "traefik.http.routers.sb-backend.entrypoints=websecure"
+      - "traefik.http.routers.sb-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sb-backend.loadbalancer.server.port=8000"
+
+  # Next.js frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: second-brain-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8110}
+    ports:
+      - "3110:3000"
+    depends_on:
+      - backend
+    networks:
+      - second-brain-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sb-frontend.rule=Host(`brain.armandointeligencia.com`)"
+      - "traefik.http.routers.sb-frontend.entrypoints=websecure"
+      - "traefik.http.routers.sb-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sb-frontend.loadbalancer.server.port=3000"
+
+  # Telegram bot
+  telegram-bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.telegram
+    container_name: second-brain-telegram
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-armando}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-second_brain_db}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-0}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "8111:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - second-brain-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sb-telegram.rule=Host(`telegram.brain.armandointeligencia.com`)"
+      - "traefik.http.routers.sb-telegram.entrypoints=websecure"
+      - "traefik.http.routers.sb-telegram.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sb-telegram.loadbalancer.server.port=8001"
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  second-brain-network:
+    driver: bridge
