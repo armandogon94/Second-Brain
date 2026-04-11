@@ -137,3 +137,81 @@ CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_user ON chunks(user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_tag_assignments_source ON tag_assignments(source_type, source_id);
+
+-- ─── Wiki tables ────────────────────────────────────────────────────────────
+
+-- Wiki pages (LLM-compiled articles with markdown + frontmatter)
+CREATE TABLE IF NOT EXISTS wiki_pages (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL DEFAULT 1,
+    slug VARCHAR(255) NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    page_type VARCHAR(50) NOT NULL DEFAULT 'concept',
+    content_markdown TEXT NOT NULL DEFAULT '',
+    frontmatter JSONB DEFAULT '{}',
+    confidence FLOAT DEFAULT 0.8,
+    is_published BOOLEAN DEFAULT TRUE,
+    is_stale BOOLEAN DEFAULT FALSE,
+    version INT DEFAULT 1,
+    compiled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    search_vector TSVECTOR GENERATED ALWAYS AS (
+        setweight(to_tsvector('english', title), 'A') ||
+        setweight(to_tsvector('english', content_markdown), 'B')
+    ) STORED,
+    CONSTRAINT fk_wiki_pages_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, slug)
+);
+
+-- Wiki links (graph edges between wiki pages)
+CREATE TABLE IF NOT EXISTS wiki_links (
+    id SERIAL PRIMARY KEY,
+    from_page_id INT NOT NULL,
+    to_page_id INT NOT NULL,
+    link_text VARCHAR(255) NOT NULL,
+    context_snippet TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wiki_links_from FOREIGN KEY (from_page_id) REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wiki_links_to FOREIGN KEY (to_page_id) REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    UNIQUE(from_page_id, to_page_id, link_text)
+);
+
+-- Wiki sources (tracks which raw sources compiled into which pages)
+CREATE TABLE IF NOT EXISTS wiki_sources (
+    id SERIAL PRIMARY KEY,
+    wiki_page_id INT NOT NULL,
+    source_type VARCHAR(50) NOT NULL,
+    source_id INT NOT NULL,
+    source_hash VARCHAR(64),
+    compiled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wiki_sources_page FOREIGN KEY (wiki_page_id) REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    UNIQUE(wiki_page_id, source_type, source_id)
+);
+
+-- Compilation log (append-only log of compilation runs)
+CREATE TABLE IF NOT EXISTS compilation_log (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL DEFAULT 1,
+    action VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    sources_processed INT DEFAULT 0,
+    pages_created INT DEFAULT 0,
+    pages_updated INT DEFAULT 0,
+    token_usage JSONB DEFAULT '{}',
+    error_message TEXT,
+    started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ,
+    details JSONB DEFAULT '{}',
+    CONSTRAINT fk_compilation_log_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Wiki indexes
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_slug ON wiki_pages(user_id, slug);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_user_type ON wiki_pages(user_id, page_type);
+CREATE INDEX IF NOT EXISTS idx_wiki_pages_fts ON wiki_pages USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_wiki_links_from ON wiki_links(from_page_id);
+CREATE INDEX IF NOT EXISTS idx_wiki_links_to ON wiki_links(to_page_id);
+CREATE INDEX IF NOT EXISTS idx_wiki_sources_source ON wiki_sources(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_wiki_sources_page ON wiki_sources(wiki_page_id);
+CREATE INDEX IF NOT EXISTS idx_compilation_log_status ON compilation_log(user_id, status);

@@ -1,5 +1,7 @@
 # CLAUDE.md — Second Brain / Personal Knowledge Base
 
+> **Port allocation:** See [PORTS.md](PORTS.md) before changing any docker-compose ports. All ports outside the assigned ranges are taken by other projects.
+
 ## Project Overview
 
 Personal knowledge management system with RAG-powered AI search. Captures notes, PDFs, and bookmarks via web UI and Telegram bot. Single-user (Armando), deployed at brain.armandointeligencia.com.

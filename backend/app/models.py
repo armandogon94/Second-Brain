@@ -4,6 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -202,4 +203,131 @@ class TagAssignment(Base):
     __table_args__ = (
         UniqueConstraint("tag_id", "source_type", "source_id", name="uq_tag_assignment"),
         Index("idx_tag_assignments_source", "source_type", "source_id"),
+    )
+
+
+# ─── Wiki models ─────────────────────────────────────────────────────────────
+
+
+class WikiPage(Base):
+    __tablename__ = "wiki_pages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), default=1)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    page_type: Mapped[str] = mapped_column(String(50), nullable=False, default="concept")
+    content_markdown: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    frontmatter: Mapped[dict] = mapped_column(JSONB, default=dict)
+    confidence: Mapped[float] = mapped_column(Float, default=0.8)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_stale: Mapped[bool] = mapped_column(Boolean, default=False)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    compiled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    search_vector: Mapped[str | None] = mapped_column(TSVECTOR)
+
+    outgoing_links: Mapped[list["WikiLink"]] = relationship(
+        foreign_keys="WikiLink.from_page_id",
+        back_populates="from_page",
+        cascade="all, delete-orphan",
+    )
+    incoming_links: Mapped[list["WikiLink"]] = relationship(
+        foreign_keys="WikiLink.to_page_id",
+        back_populates="to_page",
+        cascade="all, delete-orphan",
+    )
+    wiki_sources: Mapped[list["WikiSource"]] = relationship(
+        back_populates="wiki_page", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "slug", name="uq_wiki_pages_user_slug"),
+        Index("idx_wiki_pages_slug", "user_id", "slug"),
+        Index("idx_wiki_pages_user_type", "user_id", "page_type"),
+    )
+
+
+class WikiLink(Base):
+    __tablename__ = "wiki_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_page_id: Mapped[int] = mapped_column(
+        ForeignKey("wiki_pages.id", ondelete="CASCADE"), nullable=False
+    )
+    to_page_id: Mapped[int] = mapped_column(
+        ForeignKey("wiki_pages.id", ondelete="CASCADE"), nullable=False
+    )
+    link_text: Mapped[str] = mapped_column(String(255), nullable=False)
+    context_snippet: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    from_page: Mapped["WikiPage"] = relationship(
+        foreign_keys=[from_page_id], back_populates="outgoing_links"
+    )
+    to_page: Mapped["WikiPage"] = relationship(
+        foreign_keys=[to_page_id], back_populates="incoming_links"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "from_page_id", "to_page_id", "link_text", name="uq_wiki_link"
+        ),
+        Index("idx_wiki_links_from", "from_page_id"),
+        Index("idx_wiki_links_to", "to_page_id"),
+    )
+
+
+class WikiSource(Base):
+    __tablename__ = "wiki_sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wiki_page_id: Mapped[int] = mapped_column(
+        ForeignKey("wiki_pages.id", ondelete="CASCADE"), nullable=False
+    )
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_id: Mapped[int] = mapped_column(nullable=False)
+    source_hash: Mapped[str | None] = mapped_column(String(64))
+    compiled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    wiki_page: Mapped["WikiPage"] = relationship(back_populates="wiki_sources")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "wiki_page_id", "source_type", "source_id", name="uq_wiki_source"
+        ),
+        Index("idx_wiki_sources_source", "source_type", "source_id"),
+        Index("idx_wiki_sources_page", "wiki_page_id"),
+    )
+
+
+class CompilationLog(Base):
+    __tablename__ = "compilation_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), default=1)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    sources_processed: Mapped[int] = mapped_column(Integer, default=0)
+    pages_created: Mapped[int] = mapped_column(Integer, default=0)
+    pages_updated: Mapped[int] = mapped_column(Integer, default=0)
+    token_usage: Mapped[dict] = mapped_column(JSONB, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    __table_args__ = (
+        Index("idx_compilation_log_status", "user_id", "status"),
     )

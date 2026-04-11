@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -151,3 +152,133 @@ class SettingsUpdate(BaseModel):
 # --- Tags assignment ---
 class TagAssignRequest(BaseModel):
     tag_ids: list[int] = Field(min_length=1)
+
+
+# --- Wiki ---
+WIKI_PAGE_TYPES = Literal[
+    "concept", "person", "project", "howto", "reference", "index", "log"
+]
+
+
+class WikiPageCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    content_markdown: str = Field(min_length=1)
+    page_type: WIKI_PAGE_TYPES = "concept"
+    frontmatter: dict = Field(default_factory=dict)
+    confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class WikiPageUpdate(BaseModel):
+    title: str | None = None
+    content_markdown: str | None = None
+    page_type: WIKI_PAGE_TYPES | None = None
+    frontmatter: dict | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    is_published: bool | None = None
+    is_stale: bool | None = None
+
+
+class WikiLinkRef(BaseModel):
+    slug: str
+    title: str
+    page_type: str
+
+    model_config = {"from_attributes": True}
+
+
+class WikiSourceRef(BaseModel):
+    source_type: str
+    source_id: int
+    source_hash: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class WikiPageResponse(BaseModel):
+    id: int
+    slug: str
+    title: str
+    page_type: str
+    content_markdown: str
+    frontmatter: dict = Field(default_factory=dict)
+    confidence: float
+    is_stale: bool
+    version: int
+    compiled_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    backlinks: list[WikiLinkRef] = Field(default_factory=list)
+    sources: list[WikiSourceRef] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class WikiPageListResponse(BaseModel):
+    pages: list[WikiPageResponse]
+    total: int
+
+
+class CompileRequest(BaseModel):
+    source_ids: list[int] | None = None
+    force: bool = False
+    model: Literal["haiku", "sonnet"] = "haiku"
+
+
+class CompilationLogResponse(BaseModel):
+    id: int
+    action: str
+    status: str
+    sources_processed: int
+    pages_created: int
+    pages_updated: int
+    token_usage: dict = Field(default_factory=dict)
+    error_message: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+    details: dict = Field(default_factory=dict)
+
+    model_config = {"from_attributes": True}
+
+
+class GraphNode(BaseModel):
+    id: int
+    slug: str
+    title: str
+    type: str
+    link_count: int = 0
+
+
+class GraphEdge(BaseModel):
+    source: int
+    target: int
+    label: str = ""
+
+
+class GraphResponse(BaseModel):
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+class LintIssue(BaseModel):
+    type: str
+    slug: str | None = None
+    message: str
+
+
+class LintResponse(BaseModel):
+    issues: list[LintIssue]
+    stats: dict = Field(default_factory=dict)
+
+
+class WikiQueryRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    mode: Literal["wiki_first", "search_first", "hybrid"] = "wiki_first"
+    limit: int = Field(default=10, ge=1, le=50)
+    llm_model: str = "haiku"
+
+
+class WikiQueryResponse(BaseModel):
+    answer: str
+    wiki_page: WikiPageResponse | None = None
+    sources: list[SearchSource] = Field(default_factory=list)
+    usage: dict = Field(default_factory=dict)

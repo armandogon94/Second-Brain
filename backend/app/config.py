@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     max_file_size: int = 50 * 1024 * 1024  # 50 MB
 
+    # Wiki compilation
+    wiki_compile_model: str = "haiku"
+    wiki_compile_max_sources: int = 100
+    wiki_compile_max_tokens: int = 4096
+    wiki_boost_factor: float = 1.2
+    wiki_auto_compile: bool = False
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
