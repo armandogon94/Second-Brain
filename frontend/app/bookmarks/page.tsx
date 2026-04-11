@@ -13,6 +13,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { Header } from "@/components/Header";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +24,9 @@ import {
   createBookmark,
   updateBookmark,
   deleteBookmark,
+  fetchTags,
   type Bookmark as BookmarkType,
+  type Tag,
 } from "@/lib/api";
 import { formatDate, getDomain } from "@/lib/utils";
 
@@ -32,16 +35,25 @@ export default function BookmarksPage() {
   const [url, setUrl] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const [adding, setAdding] = useState(false);
+  const [page, setPage] = useState(0);
+  const [selectedTag, setSelectedTag] = useState("");
+  const perPage = 20;
 
-  const fetchParams =
-    filter === "all"
-      ? {}
-      : { is_read: filter === "read" };
+  const fetchParams: Record<string, unknown> = {
+    page: page + 1,
+    per_page: perPage,
+  };
+  if (filter !== "all") fetchParams.is_read = filter === "read";
+  if (selectedTag) fetchParams.tag = selectedTag;
 
   const { data, isLoading } = useSWR(
-    `bookmarks-${filter}`,
-    () => fetchBookmarks(fetchParams)
+    `bookmarks-${filter}-${page}-${selectedTag}`,
+    () => fetchBookmarks(fetchParams as any)
   );
+
+  const { data: tags } = useSWR("tags", fetchTags);
+
+  const totalPages = data ? Math.ceil(data.total / perPage) : 1;
 
   const handleAdd = async () => {
     if (!url.trim()) {
@@ -92,13 +104,31 @@ export default function BookmarksPage() {
       <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 justify-between">
-          <Button
-            className="gap-2"
-            onClick={() => setShowAddForm(!showAddForm)}
-          >
-            <Plus className="h-4 w-4" />
-            Add Bookmark
-          </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button
+              className="gap-2"
+              onClick={() => setShowAddForm(!showAddForm)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Bookmark
+            </Button>
+
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={selectedTag}
+              onChange={(e) => {
+                setSelectedTag(e.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="">All tags</option>
+              {tags?.map((tag: Tag) => (
+                <option key={tag.id} value={tag.name}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="flex gap-1">
             {(["all", "unread", "read"] as const).map((f) => (
@@ -106,7 +136,10 @@ export default function BookmarksPage() {
                 key={f}
                 variant={filter === f ? "default" : "outline"}
                 size="sm"
-                onClick={() => setFilter(f)}
+                onClick={() => {
+                  setFilter(f);
+                  setPage(0);
+                }}
                 className="capitalize"
               >
                 {f}
@@ -240,6 +273,8 @@ export default function BookmarksPage() {
             ))}
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </>
   );

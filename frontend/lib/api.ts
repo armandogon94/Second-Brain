@@ -141,12 +141,14 @@ export function fetchBookmarks(params?: {
   page?: number;
   per_page?: number;
   is_read?: boolean;
+  tag?: string;
   limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   if (params?.is_read !== undefined) query.set("is_read", String(params.is_read));
+  if (params?.tag) query.set("tag", params.tag);
   if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.toString();
   return api.get<PaginatedResponse<Bookmark>>(`/bookmarks${qs ? `?${qs}` : ""}`);

@@ -1,6 +1,11 @@
-"""Wiki graph, lint, and query endpoints."""
+"""Wiki graph, lint, query, and export endpoints."""
 
+import io
+import zipfile
+
+import yaml
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -170,4 +175,34 @@ async def wiki_query(req: WikiQueryRequest, db: AsyncSession = Depends(get_db)):
         wiki_page=wiki_page_resp,
         sources=[],
         usage={},
+    )
+
+
+@router.get("/export")
+async def export_obsidian(db: AsyncSession = Depends(get_db)):
+    """Export all wiki pages as an Obsidian-compatible zip of .md files."""
+    result = await db.execute(
+        select(WikiPage).where(WikiPage.user_id == 1).order_by(WikiPage.title)
+    )
+    pages = result.scalars().all()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for page in pages:
+            fm = {
+                "title": page.title,
+                "type": page.page_type,
+                "confidence": page.confidence,
+            }
+            if page.frontmatter:
+                fm.update(page.frontmatter)
+            front = yaml.dump(fm, default_flow_style=False, allow_unicode=True).strip()
+            content = f"---\n{front}\n---\n\n{page.content_markdown}"
+            zf.writestr(f"{page.slug}.md", content)
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=wiki-export.zip"},
     )

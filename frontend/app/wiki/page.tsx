@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { BookOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { BookOpen, Search } from "lucide-react";
 import { Header } from "@/components/Header";
-import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/Pagination";
+import { ObsidianExportButton } from "@/components/wiki/ObsidianExportButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,11 +92,14 @@ export default function WikiPage() {
             </select>
           </div>
 
-          {data && (
-            <span className="text-sm text-muted-foreground">
-              {data.total} page{data.total !== 1 ? "s" : ""}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {data && (
+              <span className="text-sm text-muted-foreground">
+                {data.total} page{data.total !== 1 ? "s" : ""}
+              </span>
+            )}
+            <ObsidianExportButton />
+          </div>
         </div>
 
         {/* Wiki pages list */}
@@ -163,30 +167,7 @@ export default function WikiPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 0}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm text-muted-foreground px-2">
-              Page {page + 1} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page + 1 >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
     </>
   );
