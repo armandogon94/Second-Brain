@@ -14,6 +14,9 @@ import {
   Moon,
   Sun,
   X,
+  BookOpen,
+  Network,
+  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
@@ -26,6 +29,9 @@ const navItems = [
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/pdfs", label: "PDFs", icon: File },
   { href: "/tags", label: "Tags", icon: Tag },
+  { href: "/wiki", label: "Wiki", icon: BookOpen },
+  { href: "/graph", label: "Graph", icon: Network },
+  { href: "/compilation", label: "Compilation", icon: Cpu },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

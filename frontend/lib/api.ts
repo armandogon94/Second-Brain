@@ -213,3 +213,168 @@ export function fetchSettings() {
 export function updateSettings(data: Partial<Settings>) {
   return api.put<Settings>("/settings", data);
 }
+
+// ---- Wiki ----
+
+export interface WikiPage {
+  id: number;
+  slug: string;
+  title: string;
+  page_type: string;
+  content_markdown: string;
+  frontmatter: Record<string, unknown>;
+  confidence: number;
+  is_stale: boolean;
+  version: number;
+  compiled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  backlinks: WikiLinkRef[];
+  sources: WikiSourceRef[];
+}
+
+export interface WikiLinkRef {
+  slug: string;
+  title: string;
+  page_type: string;
+}
+
+export interface WikiSourceRef {
+  source_type: string;
+  source_id: number;
+  source_hash: string | null;
+}
+
+export interface WikiPageList {
+  pages: WikiPage[];
+  total: number;
+}
+
+export interface GraphNode {
+  id: number;
+  slug: string;
+  title: string;
+  type: string;
+  link_count: number;
+}
+
+export interface GraphEdge {
+  source: number;
+  target: number;
+  label: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface CompileResult {
+  log_id: number;
+  status: string;
+}
+
+export interface CompilationLog {
+  id: number;
+  action: string;
+  status: string;
+  sources_processed: number;
+  pages_created: number;
+  pages_updated: number;
+  token_usage: Record<string, unknown>;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface LintIssue {
+  type: string;
+  slug: string | null;
+  message: string;
+}
+
+export interface LintResult {
+  issues: LintIssue[];
+  stats: Record<string, number>;
+}
+
+export interface WikiQueryResult {
+  answer: string;
+  wiki_page: WikiPage | null;
+  sources: SearchSource[];
+  usage: Record<string, unknown>;
+}
+
+export function fetchWikiPages(params?: {
+  skip?: number;
+  limit?: number;
+  page_type?: string;
+  search?: string;
+  stale?: boolean;
+}) {
+  const query = new URLSearchParams();
+  if (params?.skip) query.set("skip", String(params.skip));
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.page_type) query.set("page_type", params.page_type);
+  if (params?.search) query.set("search", params.search);
+  if (params?.stale !== undefined) query.set("stale", String(params.stale));
+  const qs = query.toString();
+  return api.get<WikiPageList>(`/wiki/pages${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchWikiPage(slug: string) {
+  return api.get<WikiPage>(`/wiki/pages/${slug}`);
+}
+
+export function createWikiPage(data: {
+  title: string;
+  content_markdown: string;
+  page_type?: string;
+  frontmatter?: Record<string, unknown>;
+}) {
+  return api.post<WikiPage>("/wiki/pages", data);
+}
+
+export function updateWikiPage(
+  slug: string,
+  data: {
+    title?: string;
+    content_markdown?: string;
+    page_type?: string;
+  }
+) {
+  return api.put<WikiPage>(`/wiki/pages/${slug}`, data);
+}
+
+export function deleteWikiPage(slug: string) {
+  return api.delete(`/wiki/pages/${slug}`);
+}
+
+export function fetchWikiGraph() {
+  return api.get<GraphData>("/wiki/graph");
+}
+
+export function triggerCompile(data?: {
+  model?: string;
+  force?: boolean;
+  source_ids?: number[];
+}) {
+  return api.post<CompileResult>("/wiki/compile", data || {});
+}
+
+export function fetchCompileStatus(logId: number) {
+  return api.get<CompilationLog>(`/wiki/compile/${logId}`);
+}
+
+export function fetchCompileHistory() {
+  return api.get<CompilationLog[]>("/wiki/compile/history");
+}
+
+export function wikiLint() {
+  return api.post<LintResult>("/wiki/lint");
+}
+
+export function wikiQuery(query: string, mode?: string) {
+  return api.post<WikiQueryResult>("/wiki/query", { query, mode });
+}
