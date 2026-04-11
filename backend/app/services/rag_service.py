@@ -52,6 +52,7 @@ async def hybrid_search(
                                 WHEN 'note' THEN (SELECT LEFT(n.content, 100) FROM notes n WHERE n.id = c.source_id)
                                 WHEN 'bookmark' THEN (SELECT b.title FROM bookmarks b WHERE b.id = c.source_id)
                                 WHEN 'pdf' THEN (SELECT p.filename FROM pdfs p WHERE p.id = c.source_id)
+                                WHEN 'wiki_page' THEN (SELECT w.title FROM wiki_pages w WHERE w.id = c.source_id)
                             END,
                             c.source_type || ':' || c.source_id::text
                         ) AS title
@@ -76,6 +77,7 @@ async def hybrid_search(
                                 WHEN 'note' THEN (SELECT LEFT(n.content, 100) FROM notes n WHERE n.id = c.source_id)
                                 WHEN 'bookmark' THEN (SELECT b.title FROM bookmarks b WHERE b.id = c.source_id)
                                 WHEN 'pdf' THEN (SELECT p.filename FROM pdfs p WHERE p.id = c.source_id)
+                                WHEN 'wiki_page' THEN (SELECT w.title FROM wiki_pages w WHERE w.id = c.source_id)
                             END,
                             c.source_type || ':' || c.source_id::text
                         ) AS title

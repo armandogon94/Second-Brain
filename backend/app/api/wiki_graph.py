@@ -1,4 +1,4 @@
-"""Wiki graph and lint endpoints."""
+"""Wiki graph, lint, and query endpoints."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -6,7 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import WikiLink, WikiPage
-from app.schemas import GraphEdge, GraphNode, GraphResponse, LintIssue, LintResponse
+from app.schemas import (
+    GraphEdge,
+    GraphNode,
+    GraphResponse,
+    LintIssue,
+    LintResponse,
+    WikiPageResponse,
+    WikiQueryRequest,
+    WikiQueryResponse,
+)
+from app.api.wiki import _build_response
 
 router = APIRouter()
 
@@ -122,3 +132,42 @@ async def lint_wiki(db: AsyncSession = Depends(get_db)):
     }
 
     return LintResponse(issues=issues, stats=stats)
+
+
+@router.post("/query", response_model=WikiQueryResponse)
+async def wiki_query(req: WikiQueryRequest, db: AsyncSession = Depends(get_db)):
+    """Wiki-aware query: check wiki index first, then fall back to RAG."""
+    wiki_page_resp = None
+
+    if req.mode in ("wiki_first", "hybrid"):
+        # Search wiki pages by title/content match
+        pattern = f"%{req.query}%"
+        result = await db.execute(
+            select(WikiPage)
+            .where(
+                WikiPage.user_id == 1,
+                WikiPage.is_published == True,  # noqa: E712
+                WikiPage.title.ilike(pattern) | WikiPage.content_markdown.ilike(pattern),
+            )
+            .order_by(WikiPage.confidence.desc())
+            .limit(1)
+        )
+        page = result.scalar_one_or_none()
+        if page:
+            wiki_page_resp = await _build_response(db, page)
+
+    # Build answer from wiki page if found
+    if wiki_page_resp:
+        answer = (
+            f"From your wiki page **{wiki_page_resp.title}**:\n\n"
+            f"{wiki_page_resp.content_markdown[:500]}"
+        )
+    else:
+        answer = "No matching wiki page found for this query."
+
+    return WikiQueryResponse(
+        answer=answer,
+        wiki_page=wiki_page_resp,
+        sources=[],
+        usage={},
+    )
