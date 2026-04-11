@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Note, Tag, TagAssignment
 from app.schemas import NoteCreate, NoteListResponse, NoteResponse, NoteUpdate, TagResponse
 from app.services.embedding_service import create_chunks_and_embeddings
+from app.utils.wiki_helpers import mark_wiki_pages_stale
 
 router = APIRouter()
 
@@ -142,6 +143,7 @@ async def update_note(note_id: int, note_in: NoteUpdate, db: AsyncSession = Depe
     # Re-chunk and re-embed if content changed
     if note_in.content is not None:
         await create_chunks_and_embeddings(db, "note", note.id, note.content)
+        await mark_wiki_pages_stale(db, "note", note.id)
 
     tags = await _get_note_tags(db, note.id)
     return NoteResponse(
